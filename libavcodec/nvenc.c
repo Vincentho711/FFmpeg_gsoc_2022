@@ -1171,6 +1171,8 @@ static av_cold int nvenc_setup_encoder(AVCodecContext *avctx)
     ctx->init_encode_params.frameRateNum = avctx->time_base.den;
     ctx->init_encode_params.frameRateDen = avctx->time_base.num * avctx->ticks_per_frame;
 
+    ctx->init_encode_params.reportSliceOffsets = 1;
+
     ctx->init_encode_params.enableEncodeAsync = 0;
     ctx->init_encode_params.enablePTD = 1;
 
@@ -1804,28 +1806,28 @@ static int process_output_surface(AVCodecContext *avctx, AVPacket *pkt, NvencSur
     NvencDynLoadFunctions *dl_fn = &ctx->nvenc_dload_funcs;
     NV_ENCODE_API_FUNCTION_LIST *p_nvenc = &dl_fn->nvenc_funcs;
 
-    uint32_t slice_mode_data;
+    enum AVPictureType pict_type;
+
+    uint32_t max_slice_count;
     uint32_t *slice_offsets = NULL;
     NV_ENC_LOCK_BITSTREAM lock_params = { 0 };
     NVENCSTATUS nv_status;
     int res = 0;
 
-    enum AVPictureType pict_type;
-
     switch (avctx->codec->id) {
     case AV_CODEC_ID_H264:
-      slice_mode_data = ctx->encode_config.encodeCodecConfig.h264Config.sliceModeData;
+      max_slice_count = ctx->encode_config.encodeCodecConfig.h264Config.sliceModeData * 2;
       break;
     case AV_CODEC_ID_H265:
-      slice_mode_data = ctx->encode_config.encodeCodecConfig.hevcConfig.sliceModeData;
+      max_slice_count = ctx->encode_config.encodeCodecConfig.hevcConfig.sliceModeData * 2;
       break;
     default:
       av_log(avctx, AV_LOG_ERROR, "Unknown codec name\n");
-      res = AVERROR(EINVAL);
+      res = AVERROR_BUG;
       goto error;
     }
-    slice_offsets = av_mallocz(slice_mode_data * sizeof(*slice_offsets));
 
+    slice_offsets = av_mallocz(max_slice_count * sizeof(*slice_offsets));
     if (!slice_offsets) {
         res = AVERROR(ENOMEM);
         goto error;
@@ -1843,7 +1845,12 @@ static int process_output_surface(AVCodecContext *avctx, AVPacket *pkt, NvencSur
         goto error;
     }
 
-    if (res = ff_alloc_packet2(avctx, pkt, lock_params.bitstreamSizeInBytes,0)) {
+    av_log(avctx, AV_LOG_WARNING, "output frame slice count: %d, status: %d\n", lock_params.numSlices, lock_params.hwEncodeStatus);
+    for (int i = 0; i < lock_params.numSlices; i++) {
+        av_log(avctx, AV_LOG_WARNING, "offset %d: %d\n", i, lock_params.sliceOffsets[i]);
+    }
+
+    if (res = ff_alloc_packet2(avctx, pkt, lock_params.bitstreamSizeInBytes, 0)) {
         p_nvenc->nvEncUnlockBitstream(ctx->nvencoder, tmpoutsurf->output_surface);
         goto error;
     }
@@ -2201,6 +2208,11 @@ int ff_nvenc_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
 {
     NvencContext *ctx = avctx->priv_data;
     int res;
+
+    if (avctx->flags & AV_CODEC_FLAG_INTERLACED_DCT) {
+        av_log(avctx, AV_LOG_ERROR, "Interlaced encoding is not supported via the old API\n");
+        return AVERROR(EINVAL);
+    }
 
     if (!ctx->encoder_flushing) {
         res = ff_nvenc_send_frame(avctx, frame);
