@@ -95,6 +95,7 @@ typedef struct SegmentContext {
     int64_t time;          ///< segment duration
     int use_strftime;      ///< flag to expand filename with strftime
     int increment_tc;      ///< flag to increment timecode if found
+    int nb_prepend_dir;    ///< number of chars to prepend filename with dir
 
     char *times_str;       ///< segment times specification string
     int64_t *times;        ///< list of segment interval specification
@@ -186,6 +187,24 @@ static int segment_mux_init(AVFormatContext *s)
     return 0;
 }
 
+static void _mkdir(const char *dir) {
+        char tmp[256];
+        char *p = NULL;
+        size_t len;
+
+        snprintf(tmp, sizeof(tmp),"%s",dir);
+        len = strlen(tmp);
+        if(tmp[len - 1] == '/')
+                tmp[len - 1] = 0;
+        for(p = tmp + 1; *p; p++)
+                if(*p == '/') {
+                        *p = 0;
+                        mkdir(tmp, S_IRWXU);
+                        *p = '/';
+                }
+        mkdir(tmp, S_IRWXU);
+}
+
 static int set_segment_filename(AVFormatContext *s)
 {
     SegmentContext *seg = s->priv_data;
@@ -214,6 +233,32 @@ static int set_segment_filename(AVFormatContext *s)
     new_name = av_strdup(buf);
     if (!new_name)
         return AVERROR(ENOMEM);
+
+    if (seg->nb_prepend_dir > 0) {
+        int offset, l = FFMIN(strlen(new_name), seg->nb_prepend_dir);
+	char *raw_file = strrchr(buf, '/');
+	char *prep_name = av_mallocz(strlen(buf) + l + 2);
+
+	if (!raw_file)
+            raw_file = buf;
+	else
+	    raw_file += 1;
+	offset = raw_file - buf;
+	raw_file = av_strdup(raw_file);
+	buf[offset] = 0;
+
+	strcat(prep_name, buf);
+	strncat(prep_name, raw_file, l);
+
+	_mkdir(prep_name);
+
+	strcat(prep_name, "/");
+	strcat(prep_name, raw_file);
+
+	av_free(new_name);
+	new_name = prep_name;
+    }
+
     ff_format_set_url(oc, new_name);
 
     /* copy modified name in list entry */
@@ -1053,6 +1098,7 @@ static const AVOption options[] = {
     { "segment_start_number", "set the sequence number of the first segment", OFFSET(segment_idx), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
     { "segment_wrap_number", "set the number of wrap before the first segment", OFFSET(segment_idx_wrap_nb), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
     { "strftime",          "set filename expansion with strftime at segment creation", OFFSET(use_strftime), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, E },
+    { "prepend_dir_part",  "prepend first n characters from filename as directory", OFFSET(nb_prepend_dir), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, E },
     { "increment_tc", "increment timecode between each segment", OFFSET(increment_tc), AV_OPT_TYPE_BOOL, {.i64 = 0 }, 0, 1, E },
     { "break_non_keyframes", "allow breaking segments on non-keyframes", OFFSET(break_non_keyframes), AV_OPT_TYPE_BOOL, {.i64 = 0}, 0, 1, E },
 
