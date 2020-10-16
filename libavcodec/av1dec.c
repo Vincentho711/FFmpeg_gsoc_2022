@@ -26,8 +26,25 @@
 #include "internal.h"
 #include "profiles.h"
 
-static void setup_past_independence(AV1Frame *f)
+static void loop_filter_delta_update(AV1DecContext *s)
 {
+    for (int i = 0; i < AV1_TOTAL_REFS_PER_FRAME; i++) {
+        if (s->raw_frame_header->update_ref_delta[i])
+            s->cur_frame.loop_filter_ref_deltas[i] =
+                s->raw_frame_header->loop_filter_ref_deltas[i];
+    }
+
+    for (int i = 0; i < 2; i++) {
+        if (s->raw_frame_header->update_mode_delta[i])
+            s->cur_frame.loop_filter_mode_deltas[i] =
+                s->raw_frame_header->loop_filter_mode_deltas[i];
+    }
+}
+
+static void setup_past_independence_and_update(AV1DecContext *s)
+{
+    AV1Frame *f = &s->cur_frame;
+
     f->loop_filter_delta_enabled = 1;
 
     f->loop_filter_ref_deltas[AV1_REF_FRAME_INTRA] = 1;
@@ -41,6 +58,12 @@ static void setup_past_independence(AV1Frame *f)
 
     f->loop_filter_mode_deltas[0] = 0;
     f->loop_filter_mode_deltas[1] = 0;
+
+    f->loop_filter_delta_enabled =
+        s->raw_frame_header->loop_filter_delta_enabled;
+
+    if (s->raw_frame_header->loop_filter_delta_update)
+        loop_filter_delta_update(s);
 }
 
 static void load_previous_and_update(AV1DecContext *s)
@@ -56,22 +79,11 @@ static void load_previous_and_update(AV1DecContext *s)
            s->ref[prev_frame].loop_filter_mode_deltas,
            2 * sizeof(int8_t));
 
-    if (s->raw_frame_header->loop_filter_delta_update) {
-        for (int i = 0; i < AV1_NUM_REF_FRAMES; i++) {
-            if (s->raw_frame_header->update_ref_delta[i])
-                s->cur_frame.loop_filter_ref_deltas[i] =
-                    s->raw_frame_header->loop_filter_ref_deltas[i];
-        }
-
-        for (int i = 0; i < 2; i++) {
-            if (s->raw_frame_header->update_mode_delta[i])
-                s->cur_frame.loop_filter_mode_deltas[i] =
-                    s->raw_frame_header->loop_filter_mode_deltas[i];
-        }
-    }
-
     s->cur_frame.loop_filter_delta_enabled =
         s->raw_frame_header->loop_filter_delta_enabled;
+
+    if (s->raw_frame_header->loop_filter_delta_update)
+        loop_filter_delta_update(s);
 }
 
 static uint32_t inverse_recenter(int r, uint32_t v)
@@ -646,7 +658,7 @@ static int get_current_frame(AVCodecContext *avctx)
     }
 
     if (s->raw_frame_header->primary_ref_frame == AV1_PRIMARY_REF_NONE)
-        setup_past_independence(&s->cur_frame);
+        setup_past_independence_and_update(s);
     else
         load_previous_and_update(s);
 
