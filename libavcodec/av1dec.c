@@ -45,8 +45,6 @@ static void setup_past_independence_and_update(AV1DecContext *s)
 {
     AV1Frame *f = &s->cur_frame;
 
-    f->loop_filter_delta_enabled = 1;
-
     f->loop_filter_ref_deltas[AV1_REF_FRAME_INTRA] = 1;
     f->loop_filter_ref_deltas[AV1_REF_FRAME_LAST] = 0;
     f->loop_filter_ref_deltas[AV1_REF_FRAME_LAST2] = 0;
@@ -58,9 +56,6 @@ static void setup_past_independence_and_update(AV1DecContext *s)
 
     f->loop_filter_mode_deltas[0] = 0;
     f->loop_filter_mode_deltas[1] = 0;
-
-    f->loop_filter_delta_enabled =
-        s->raw_frame_header->loop_filter_delta_enabled;
 
     if (s->raw_frame_header->loop_filter_delta_update)
         loop_filter_delta_update(s);
@@ -78,9 +73,6 @@ static void load_previous_and_update(AV1DecContext *s)
     memcpy(s->cur_frame.loop_filter_mode_deltas,
            s->ref[prev_frame].loop_filter_mode_deltas,
            2 * sizeof(int8_t));
-
-    s->cur_frame.loop_filter_delta_enabled =
-        s->raw_frame_header->loop_filter_delta_enabled;
 
     if (s->raw_frame_header->loop_filter_delta_update)
         loop_filter_delta_update(s);
@@ -375,7 +367,6 @@ static int av1_frame_ref(AVCodecContext *avctx, AV1Frame *dst, const AV1Frame *s
 
     dst->spatial_id = src->spatial_id;
     dst->temporal_id = src->temporal_id;
-    dst->loop_filter_delta_enabled = src->loop_filter_delta_enabled;
     memcpy(dst->loop_filter_ref_deltas,
            src->loop_filter_ref_deltas,
            AV1_NUM_REF_FRAMES * sizeof(int8_t));
