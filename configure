@@ -2918,6 +2918,8 @@ videotoolbox_hwaccel_deps="videotoolbox pthreads"
 videotoolbox_hwaccel_extralibs="-framework QuartzCore"
 xvmc_deps="X11_extensions_XvMClib_h"
 
+av1_nvdec_hwaccel_deps="nvdec CUVIDAV1PICPARAMS"
+av1_nvdec_hwaccel_select="av1_decoder"
 h263_vaapi_hwaccel_deps="vaapi"
 h263_vaapi_hwaccel_select="h263_decoder"
 h263_videotoolbox_hwaccel_deps="videotoolbox"

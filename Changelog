@@ -39,6 +39,7 @@ version <next>:
 - afreqshift and aphaseshift filters
 - High Voltage Software ADPCM encoder
 - LEGO Racers ALP (.tun & .pcm) muxer
+- NVDEC AV1 hwaccel
 
 
 version 4.3:
