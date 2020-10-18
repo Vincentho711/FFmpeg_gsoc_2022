@@ -43,6 +43,8 @@ typedef struct AV1Frame {
     int8_t  loop_filter_mode_deltas[2];
     uint8_t gm_type[AV1_NUM_REF_FRAMES];
     int32_t gm_params[AV1_NUM_REF_FRAMES][6];
+    uint8_t feature_enabled[AV1_MAX_SEGMENTS][AV1_SEG_LVL_MAX];
+    int16_t feature_value[AV1_MAX_SEGMENTS][AV1_SEG_LVL_MAX];
 } AV1Frame;
 
 typedef struct TileGroupInfo {

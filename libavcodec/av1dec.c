@@ -41,6 +41,18 @@ static void loop_filter_delta_update(AV1DecContext *s)
     }
 }
 
+static void load_segmentation_params(AV1DecContext *s)
+{
+    for (int i = 0; i < AV1_MAX_SEGMENTS; i++) {
+        for (int j = 0; j < AV1_SEG_LVL_MAX; j++) {
+            s->cur_frame.feature_enabled[i][j] =
+                s->raw_frame_header->feature_enabled[i][j];
+            s->cur_frame.feature_value[i][j] =
+                s->raw_frame_header->feature_value[i][j];
+        }
+    }
+}
+
 static void setup_past_independence_and_update(AV1DecContext *s)
 {
     AV1Frame *f = &s->cur_frame;
@@ -59,6 +71,14 @@ static void setup_past_independence_and_update(AV1DecContext *s)
 
     if (s->raw_frame_header->loop_filter_delta_update)
         loop_filter_delta_update(s);
+
+    if (s->raw_frame_header->segmentation_enabled &&
+        s->raw_frame_header->segmentation_update_data) {
+        load_segmentation_params(s);
+    } else {
+        memset(f->feature_enabled, 0, sizeof(f->feature_enabled));
+        memset(f->feature_value, 0, sizeof(f->feature_value));
+    }
 }
 
 static void load_previous_and_update(AV1DecContext *s)
@@ -76,6 +96,24 @@ static void load_previous_and_update(AV1DecContext *s)
 
     if (s->raw_frame_header->loop_filter_delta_update)
         loop_filter_delta_update(s);
+
+    if (s->raw_frame_header->segmentation_enabled) {
+        if (s->raw_frame_header->segmentation_update_data) {
+            load_segmentation_params(s);
+        } else {
+            memcpy(s->cur_frame.feature_enabled,
+                   s->ref[prev_frame].feature_enabled,
+                   sizeof(s->cur_frame.feature_enabled));
+            memcpy(s->cur_frame.feature_value,
+                   s->ref[prev_frame].feature_value,
+                   sizeof(s->cur_frame.feature_value));
+        }
+    } else {
+        memset(s->cur_frame.feature_enabled, 0,
+               sizeof(s->cur_frame.feature_enabled));
+        memset(s->cur_frame.feature_value, 0,
+               sizeof(s->cur_frame.feature_value));
+    }
 }
 
 static uint32_t inverse_recenter(int r, uint32_t v)
@@ -384,6 +422,12 @@ static int av1_frame_ref(AVCodecContext *avctx, AV1Frame *dst, const AV1Frame *s
     memcpy(dst->gm_params,
            src->gm_params,
            AV1_NUM_REF_FRAMES * 6 * sizeof(int32_t));
+    memcpy(dst->feature_enabled,
+           src->feature_enabled,
+           sizeof(dst->feature_enabled));
+    memcpy(dst->feature_value,
+           src->feature_value,
+           sizeof(dst->feature_value));
 
     return 0;
 
