@@ -177,12 +177,12 @@ static int CUDAAPI cuvid_handle_video_sequence(void *opaque, CUVIDEOFORMAT* form
         break;
     }
 
-    if (!caps || !caps->bIsSupported) {
+    /* if (!caps || !caps->bIsSupported) {
         av_log(avctx, AV_LOG_ERROR, "unsupported bit depth: %d\n",
                format->bit_depth_luma_minus8 + 8);
         ctx->internal_error = AVERROR(EINVAL);
         return 0;
-    }
+    } */
 
     surface_fmt = ff_get_format(avctx, pix_fmts);
     if (surface_fmt < 0) {
@@ -310,7 +310,7 @@ static int CUDAAPI cuvid_handle_video_sequence(void *opaque, CUVIDEOFORMAT* form
     if (ctx->deint_mode_current != cudaVideoDeinterlaceMode_Weave && !ctx->drop_second_field)
         avctx->framerate = av_mul_q(avctx->framerate, (AVRational){2, 1});
 
-    ctx->internal_error = CHECK_CU(ctx->cvdl->cuvidCreateDecoder(&ctx->cudecoder, &cuinfo));
+    ctx->internal_error = 0; //CHECK_CU(ctx->cvdl->cuvidCreateDecoder(&ctx->cudecoder, &cuinfo));
     if (ctx->internal_error < 0)
         return 0;
 
@@ -337,6 +337,37 @@ static int CUDAAPI cuvid_handle_picture_decode(void *opaque, CUVIDPICPARAMS* pic
     av_log(avctx, AV_LOG_TRACE, "pfnDecodePicture\n");
 
     ctx->key_frame[picparams->CurrPicIdx] = picparams->intra_pic_flag;
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: primary_ref_frame: %d\n", (int)picparams->CodecSpecific.av1.primary_ref_frame);
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: ref index: %d, %d, %d, %d, %d, %d, %d\n", (int)picparams->CodecSpecific.av1.ref_frame[0].index, (int)picparams->CodecSpecific.av1.ref_frame[1].index, (int)picparams->CodecSpecific.av1.ref_frame[2].index, (int)picparams->CodecSpecific.av1.ref_frame[3].index, (int)picparams->CodecSpecific.av1.ref_frame[4].index, (int)picparams->CodecSpecific.av1.ref_frame[5].index, (int)picparams->CodecSpecific.av1.ref_frame[6].index);
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: invalid: %d, %d, %d, %d, %d, %d, %d\n", (int)picparams->CodecSpecific.av1.global_motion[0].invalid, (int)picparams->CodecSpecific.av1.global_motion[1].invalid, (int)picparams->CodecSpecific.av1.global_motion[2].invalid, (int)picparams->CodecSpecific.av1.global_motion[3].invalid, (int)picparams->CodecSpecific.av1.global_motion[4].invalid, (int)picparams->CodecSpecific.av1.global_motion[5].invalid, (int)picparams->CodecSpecific.av1.global_motion[6].invalid);
+
+    for (int i = 0; i < picparams->CodecSpecific.av1.num_y_points; ++i) {
+        av_log(avctx, AV_LOG_INFO, "CUDBG: scaling_points_y[%d][0]: %d, scaling_points_y[%d][1]: %d\n", i, (int)picparams->CodecSpecific.av1.scaling_points_y[i][0], i, (int)picparams->CodecSpecific.av1.scaling_points_y[i][1]);
+    }
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: decodePicIdx: %d, CurrPicIdx: %d\n", (int)picparams->CodecSpecific.av1.decodePicIdx, (int)picparams->CurrPicIdx);
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: Slices: %d, Size: %d\n", (int)picparams->nNumSlices, (int)picparams->nBitstreamDataLen);
+    for (int i = 0; i < (picparams->nNumSlices * 2); ++i) {
+        const uint8_t *d = picparams->pBitstreamData + picparams->pSliceDataOffsets[i];
+        av_log(avctx, AV_LOG_INFO, "CUDBG: Slice: %d, Offset: %d; 0x%02X 0x%02X 0x%02X 0x%02X\n", i, (int)picparams->pSliceDataOffsets[i], (unsigned int)d[0], (unsigned int)d[1], (unsigned int)d[2], (unsigned int)d[3]);
+    }
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: ar_coeffs_y: %d %d %d %d\n", (int)picparams->CodecSpecific.av1.ar_coeffs_y[0], (int)picparams->CodecSpecific.av1.ar_coeffs_y[1], (int)picparams->CodecSpecific.av1.ar_coeffs_y[2], (int)picparams->CodecSpecific.av1.ar_coeffs_y[3]);
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: lr_type[0]: %d,lr_type[1]: %d,lr_type[2]: %d\n", (int)picparams->CodecSpecific.av1.lr_type[0], (int)picparams->CodecSpecific.av1.lr_type[1], (int)picparams->CodecSpecific.av1.lr_type[2]);
+
+    for (int i = 0; i < 8; ++i) {
+        for (int j = 0; j < 8; ++j) {
+            av_log(avctx, AV_LOG_INFO, "CUDBG: segmentation_feature_data[%d][%d]: %d\n", i, j, (int)picparams->CodecSpecific.av1.segmentation_feature_data[i][j]);
+        }
+        av_log(avctx, AV_LOG_INFO, "CUDBG: segmentation_feature_mask[%d]: %d\n", i, (int)picparams->CodecSpecific.av1.segmentation_feature_mask[i]);
+    }
+
+    av_log(avctx, AV_LOG_INFO, "CUDBG: loop_filter_mode_deltas: %d %d, loop_filter_ref_deltas: %d %d %d %d %d %d %d %d\n", (int)picparams->CodecSpecific.av1.loop_filter_mode_deltas[0], (int)picparams->CodecSpecific.av1.loop_filter_mode_deltas[1], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[0], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[1], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[2], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[3], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[4], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[5], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[6], (int)picparams->CodecSpecific.av1.loop_filter_ref_deltas[7]);
 
     ctx->internal_error = CHECK_CU(ctx->cvdl->cuvidDecodePicture(ctx->cudecoder, picparams));
     if (ctx->internal_error < 0)
@@ -740,6 +771,8 @@ static int cuvid_test_capabilities(AVCodecContext *avctx,
            ctx->caps10.bIsSupported, ctx->caps10.nMinWidth, ctx->caps10.nMaxWidth, ctx->caps10.nMinHeight, ctx->caps10.nMaxHeight);
     av_log(avctx, AV_LOG_VERBOSE, "12 bit: supported: %d, min_width: %d, max_width: %d, min_height: %d, max_height: %d\n",
            ctx->caps12.bIsSupported, ctx->caps12.nMinWidth, ctx->caps12.nMaxWidth, ctx->caps12.nMinHeight, ctx->caps12.nMaxHeight);
+
+    return 0;
 
     switch (bit_depth) {
     case 10:

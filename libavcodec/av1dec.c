@@ -377,7 +377,7 @@ static int get_pixel_format(AVCodecContext *avctx)
     if (!avctx->hwaccel) {
         av_log(avctx, AV_LOG_ERROR, "Your platform doesn't suppport"
                " hardware accelerated AV1 decoding.\n");
-        return AVERROR(ENOSYS);
+        //return AVERROR(ENOSYS);
     }
 
     avctx->pix_fmt = ret;
@@ -829,6 +829,19 @@ static int av1_decode_frame(AVCodecContext *avctx, void *frame,
 
             s->cur_frame.spatial_id  = header->spatial_id;
             s->cur_frame.temporal_id = header->temporal_id;
+
+            if (s->raw_frame_header->show_frame) {
+                for (int i = 0; i < 8; ++i) {
+                    int segmentation_feature_mask = 0;
+                    for (int j = 0; j < 8; ++j) {
+                        segmentation_feature_mask |= s->cur_frame.feature_enabled[i][j] << j;
+                        av_log(avctx, AV_LOG_INFO, "AV1DBG: segmentation_feature_data[%d][%d]: %d\n", i, j, (int)s->cur_frame.feature_value[i][j]);
+                    }
+                    av_log(avctx, AV_LOG_INFO, "AV1DBG: segmentation_feature_mask[%d]: %d\n", i, segmentation_feature_mask);
+                }
+                
+                av_log(avctx, AV_LOG_INFO, "AV1DBG: loop_filter_mode_deltas: %d %d, loop_filter_ref_deltas: %d %d %d %d %d %d %d %d\n", (int)s->cur_frame.loop_filter_mode_deltas[0], (int)s->cur_frame.loop_filter_mode_deltas[1], (int)s->cur_frame.loop_filter_ref_deltas[0], (int)s->cur_frame.loop_filter_ref_deltas[1], (int)s->cur_frame.loop_filter_ref_deltas[2], (int)s->cur_frame.loop_filter_ref_deltas[3], (int)s->cur_frame.loop_filter_ref_deltas[4], (int)s->cur_frame.loop_filter_ref_deltas[5], (int)s->cur_frame.loop_filter_ref_deltas[6], (int)s->cur_frame.loop_filter_ref_deltas[7]);
+            }
 
             if (avctx->hwaccel) {
                 ret = avctx->hwaccel->start_frame(avctx, unit->data,
