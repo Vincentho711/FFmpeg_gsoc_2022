@@ -1563,6 +1563,8 @@ static int FUNC(uncompressed_header)(CodedBitstreamContext *ctx, RWContext *rw,
     priv->all_lossless = priv->coded_lossless &&
         priv->frame_width == priv->upscaled_width;
 
+    infer(coded_lossless, priv->coded_lossless);
+
     CHECK(FUNC(loop_filter_params)(ctx, rw, current));
 
     CHECK(FUNC(cdef_params)(ctx, rw, current));

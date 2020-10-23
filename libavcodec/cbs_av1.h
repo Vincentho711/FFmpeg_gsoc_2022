@@ -180,6 +180,8 @@ typedef struct AV1RawFrameHeader {
 
     uint8_t disable_frame_end_update_cdf;
 
+    uint8_t coded_lossless;
+
     uint8_t uniform_tile_spacing_flag;
     uint8_t tile_cols_log2;
     uint8_t tile_rows_log2;
