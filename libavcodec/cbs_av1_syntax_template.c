@@ -1000,6 +1000,8 @@ static int FUNC(skip_mode_params)(CodedBitstreamContext *ctx, RWContext *rw,
     int skip_mode_allowed;
     int err;
 
+    int skip_mode_frame_idx[2] = { -1, -1 };
+
     if (current->frame_type == AV1_FRAME_KEY ||
         current->frame_type == AV1_FRAME_INTRA_ONLY ||
         !current->reference_select || !seq->enable_order_hint) {
@@ -1036,7 +1038,8 @@ static int FUNC(skip_mode_params)(CodedBitstreamContext *ctx, RWContext *rw,
             skip_mode_allowed = 0;
         } else if (backward_idx >= 0) {
             skip_mode_allowed = 1;
-            // Frames for skip mode are forward_idx and backward_idx.
+            skip_mode_frame_idx[0] = forward_idx;
+            skip_mode_frame_idx[1] = backward_idx;
         } else {
             int second_forward_idx;
             int second_forward_hint;
@@ -1059,7 +1062,8 @@ static int FUNC(skip_mode_params)(CodedBitstreamContext *ctx, RWContext *rw,
                 skip_mode_allowed = 0;
             } else {
                 skip_mode_allowed = 1;
-                // Frames for skip mode are forward_idx and second_forward_idx.
+                skip_mode_frame_idx[0] = forward_idx;
+                skip_mode_frame_idx[1] = second_forward_idx;
             }
         }
     }
@@ -1068,6 +1072,9 @@ static int FUNC(skip_mode_params)(CodedBitstreamContext *ctx, RWContext *rw,
         flag(skip_mode_present);
     else
         infer(skip_mode_present, 0);
+
+    infer(skip_mode_frame_idx[0], AV1_REF_FRAME_LAST + FFMIN(skip_mode_frame_idx[0], skip_mode_frame_idx[1]));
+    infer(skip_mode_frame_idx[1], AV1_REF_FRAME_LAST + FFMAX(skip_mode_frame_idx[0], skip_mode_frame_idx[1]));
 
     return 0;
 }

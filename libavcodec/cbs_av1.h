@@ -243,6 +243,7 @@ typedef struct AV1RawFrameHeader {
     uint8_t tx_mode;
     uint8_t reference_select;
     uint8_t skip_mode_present;
+    int8_t  skip_mode_frame_idx[2];
 
     uint8_t allow_warped_motion;
     uint8_t reduced_tx_set;
