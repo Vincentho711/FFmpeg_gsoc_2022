@@ -291,7 +291,7 @@ static int nvdec_av1_decode_slice(AVCodecContext *avctx, const uint8_t *buffer, 
     ctx->nb_slices = frame_header->tile_cols * frame_header->tile_rows;
 
     tmp = av_fast_realloc(ctx->slice_offsets, &ctx->slice_offsets_allocated,
-                          ctx->nb_slices * sizeof(*ctx->slice_offsets));
+                          ctx->nb_slices * sizeof(*ctx->slice_offsets) * 2);
     if (!tmp) {
         return AVERROR(ENOMEM);
     }
@@ -302,9 +302,19 @@ static int nvdec_av1_decode_slice(AVCodecContext *avctx, const uint8_t *buffer, 
         ctx->bitstream = (uint8_t*)buffer;
         ctx->bitstream_len = size;
 
-        for (int i = 0; i < ctx->nb_slices; ++i) {
-            ctx->slice_offsets[i] = s->tile_group_info[i].tile_offset;
+        ctx->slice_offsets[0] = s->tile_group_info[0].tile_offset;
+
+        for (int i = 1; i < ctx->nb_slices; ++i) {
+            int nv_offset = i * 2 - 1;
+            if (i == s->tg_end)
+                ctx->slice_offsets[nv_offset    ] = s->tile_group_info[i].tile_offset;
+            else
+                ctx->slice_offsets[nv_offset    ] = s->tile_group_info[i].tile_offset - frame_header->tile_size_bytes_minus1 - 1;
+
+            ctx->slice_offsets[nv_offset + 1] = s->tile_group_info[i].tile_offset;
         }
+
+        ctx->slice_offsets[ctx->nb_slices * 2 - 1] = ctx->bitstream_len;
 
         return 0;
     }
@@ -319,9 +329,18 @@ static int nvdec_av1_decode_slice(AVCodecContext *avctx, const uint8_t *buffer, 
     memcpy(ctx->bitstream + ctx->bitstream_len, buffer, size);
 
     for (uint32_t tile_num = s->tg_start; tile_num <= s->tg_end; ++tile_num) {
-        ctx->slice_offsets[tile_num] = ctx->bitstream_len + s->tile_group_info[tile_num].tile_offset;
+        int nv_offset = tile_num * 2 - 1;
+        if (tile_num > 0) {
+            if (tile_num == s->tg_end)
+                ctx->slice_offsets[nv_offset] = ctx->bitstream_len + s->tile_group_info[tile_num].tile_offset;
+            else
+                ctx->slice_offsets[nv_offset] = ctx->bitstream_len + s->tile_group_info[tile_num].tile_offset - frame_header->tile_size_bytes_minus1 - 1;
+        }
+        ctx->slice_offsets[nv_offset + 1] = ctx->bitstream_len + s->tile_group_info[tile_num].tile_offset;
     }
     ctx->bitstream_len += size;
+
+    ctx->slice_offsets[ctx->nb_slices * 2 - 1] = ctx->bitstream_len;
 
     return 0;
 }
