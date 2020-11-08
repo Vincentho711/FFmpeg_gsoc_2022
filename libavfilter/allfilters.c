@@ -258,6 +258,7 @@ extern const AVFilter ff_vf_fillborders;
 extern const AVFilter ff_vf_find_rect;
 extern const AVFilter ff_vf_floodfill;
 extern const AVFilter ff_vf_format;
+extern const AVFilter ff_vf_format_cuda;
 extern const AVFilter ff_vf_fps;
 extern const AVFilter ff_vf_framepack;
 extern const AVFilter ff_vf_framerate;

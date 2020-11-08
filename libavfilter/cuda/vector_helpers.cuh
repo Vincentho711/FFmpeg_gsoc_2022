@@ -42,31 +42,41 @@ template<> struct vector_helper<int4>    { typedef float4 ftype; typedef int4 it
 
 template<typename T, typename V> inline __device__ V to_floatN(const T &a) { return (V)a; }
 template<typename T, typename V> inline __device__ T from_floatN(const V &a) { return (T)a; }
+template<typename T, typename V> inline __device__ V to_intN(const T &a) { return (V)a; }
+template<typename T, typename V> inline __device__ T from_intN(const V &a) { return (T)a; }
 
 #define OPERATORS2(T) \
     template<typename V> inline __device__ T operator+(const T &a, const V &b) { return make_ ## T (a.x + b.x, a.y + b.y); } \
     template<typename V> inline __device__ T operator-(const T &a, const V &b) { return make_ ## T (a.x - b.x, a.y - b.y); } \
     template<typename V> inline __device__ T operator*(const T &a, V b) { return make_ ## T (a.x * b, a.y * b); } \
     template<typename V> inline __device__ T operator/(const T &a, V b) { return make_ ## T (a.x / b, a.y / b); } \
+    template<typename V> inline __device__ T operator&(const T &a, V b) { return make_ ## T (a.x & b, a.y & b); } \
+    template<typename V> inline __device__ T operator|(const T &a, V b) { return make_ ## T (a.x | b, a.y | b); } \
     template<typename V> inline __device__ T operator>>(const T &a, V b) { return make_ ## T (a.x >> b, a.y >> b); } \
     template<typename V> inline __device__ T operator<<(const T &a, V b) { return make_ ## T (a.x << b, a.y << b); } \
     template<typename V> inline __device__ T &operator+=(T &a, const V &b) { a.x += b.x; a.y += b.y; return a; } \
     template<typename V> inline __device__ void vec_set(T &a, const V &b) { a.x = b.x; a.y = b.y; } \
     template<typename V> inline __device__ void vec_set_scalar(T &a, V b) { a.x = b; a.y = b; } \
     template<> inline __device__ float2 to_floatN<T, float2>(const T &a) { return make_float2(a.x, a.y); } \
-    template<> inline __device__ T from_floatN<T, float2>(const float2 &a) { return make_ ## T(a.x, a.y); }
+    template<> inline __device__ T from_floatN<T, float2>(const float2 &a) { return make_ ## T(a.x, a.y); } \
+    template<> inline __device__ int2 to_intN<T, int2>(const T &a) { return make_int2(a.x, a.y); } \
+    template<> inline __device__ T from_intN<T, int2>(const int2 &a) { return make_ ## T(a.x, a.y); }
 #define OPERATORS4(T) \
     template<typename V> inline __device__ T operator+(const T &a, const V &b) { return make_ ## T (a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); } \
     template<typename V> inline __device__ T operator-(const T &a, const V &b) { return make_ ## T (a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); } \
     template<typename V> inline __device__ T operator*(const T &a, V b) { return make_ ## T (a.x * b, a.y * b, a.z * b, a.w * b); } \
     template<typename V> inline __device__ T operator/(const T &a, V b) { return make_ ## T (a.x / b, a.y / b, a.z / b, a.w / b); } \
+    template<typename V> inline __device__ T operator&(const T &a, V b) { return make_ ## T (a.x & b, a.y & b, a.z & b, a.w & b); } \
+    template<typename V> inline __device__ T operator|(const T &a, V b) { return make_ ## T (a.x | b, a.y | b, a.z | b, a.w | b); } \
     template<typename V> inline __device__ T operator>>(const T &a, V b) { return make_ ## T (a.x >> b, a.y >> b, a.z >> b, a.w >> b); } \
     template<typename V> inline __device__ T operator<<(const T &a, V b) { return make_ ## T (a.x << b, a.y << b, a.z << b, a.w << b); } \
     template<typename V> inline __device__ T &operator+=(T &a, const V &b) { a.x += b.x; a.y += b.y; a.z += b.z; a.w += b.w; return a; } \
     template<typename V> inline __device__ void vec_set(T &a, const V &b) { a.x = b.x; a.y = b.y; a.z = b.z; a.w = b.w; } \
     template<typename V> inline __device__ void vec_set_scalar(T &a, V b) { a.x = b; a.y = b; a.z = b; a.w = b; } \
     template<> inline __device__ float4 to_floatN<T, float4>(const T &a) { return make_float4(a.x, a.y, a.z, a.w); } \
-    template<> inline __device__ T from_floatN<T, float4>(const float4 &a) { return make_ ## T(a.x, a.y, a.z, a.w); }
+    template<> inline __device__ T from_floatN<T, float4>(const float4 &a) { return make_ ## T(a.x, a.y, a.z, a.w); } \
+    template<> inline __device__ int4 to_intN<T, int4>(const T &a) { return make_int4(a.x, a.y, a.z, a.w); } \
+    template<> inline __device__ T from_intN<T, int4>(const int4 &a) { return make_ ## T(a.x, a.y, a.z, a.w); }
 
 OPERATORS2(int2)
 OPERATORS2(uchar2)

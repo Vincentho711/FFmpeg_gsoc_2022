@@ -12324,6 +12324,52 @@ format=pix_fmts=yuv420p|yuv444p|yuv410p
 @end example
 @end itemize
 
+@anchor{format_cuda}
+@section format_cuda
+
+Convert the input video to one of the specified pixel formats.
+Libavfilter will try to pick one that is suitable as input to
+the next filter.
+
+It accepts the following parameters:
+@table @option
+
+@item format
+The name of the desired output format.
+If none is specified, the input format will be used.
+
+@item passthrough
+If true, input frames matching the output format will be passed
+through as-is.
+If false, every input frame is processed. Frames matching the
+output format will be copied without data modification. This is
+the default mode.
+
+@end table
+
+@subsection Examples
+
+@itemize
+@item
+Convert the input video to the @var{yuv420p} format.
+@example
+format_cuda=yuv420p
+@end example
+
+Convert the input video to the @var{yuv420p} format, but pass-through any
+input that already matches the format without touching the frames at all.
+@example
+format_cuda=yuv420p:1
+@end example
+
+With no arguments, every input frame will be copied into a new
+buffer, with no further processing done. This can be useful to decouple
+a decoder with a limited buffer pool from a processing chain with deep buffers.
+@example
+format_cuda
+@end example
+@end itemize
+
 @anchor{fps}
 @section fps
 
