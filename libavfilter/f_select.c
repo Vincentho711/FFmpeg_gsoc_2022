@@ -86,6 +86,8 @@ static const char *const var_names[] = {
 
     "concatdec_select",  ///< frame is within the interval set by the concat demuxer
 
+    "silence_detected",  ///< silencedetect detected silence for this frame
+
     NULL
 };
 
@@ -138,6 +140,8 @@ enum var_name {
 
     VAR_CONCATDEC_SELECT,
 
+    VAR_SILENCE_DETECTED,
+
     VAR_VARS_NB
 };
 
@@ -157,6 +161,7 @@ typedef struct SelectContext {
     double select;
     int select_out;                 ///< mark the selected output pad index
     int nb_outputs;
+    int silence_detected;
 } SelectContext;
 
 #define OFFSET(x) offsetof(SelectContext, x)
@@ -325,6 +330,18 @@ static double get_concatdec_select(AVFrame *frame, int64_t pts)
     return NAN;
 }
 
+static double get_silence_detected(SelectContext *select, AVFrame *frame)
+{
+    AVDictionary *metadata = frame->metadata;
+    AVDictionaryEntry *start = av_dict_get(metadata, "lavfi.silence_start", NULL, 0);
+    AVDictionaryEntry *end = av_dict_get(metadata, "lavfi.silence_end", NULL, 0);
+    if (start)
+        select->silence_detected = -1;
+    if (end)
+        select->silence_detected = 0;
+    return select->silence_detected;
+}
+
 static void select_frame(AVFilterContext *ctx, AVFrame *frame)
 {
     SelectContext *select = ctx->priv;
@@ -342,6 +359,7 @@ static void select_frame(AVFilterContext *ctx, AVFrame *frame)
     select->var_values[VAR_POS] = frame->pkt_pos == -1 ? NAN : frame->pkt_pos;
     select->var_values[VAR_KEY] = frame->key_frame;
     select->var_values[VAR_CONCATDEC_SELECT] = get_concatdec_select(frame, av_rescale_q(frame->pts, inlink->time_base, AV_TIME_BASE_Q));
+    select->var_values[VAR_SILENCE_DETECTED] = get_silence_detected(select, frame);
 
     switch (inlink->type) {
     case AVMEDIA_TYPE_AUDIO:
