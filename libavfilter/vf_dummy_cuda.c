@@ -71,11 +71,16 @@ typedef struct CUDADummyContext {
 
     char *w_expr;               ///< width  expression string
     char *h_expr;               ///< height expression string
+    int kernel_dim;             ///< dimesion of gaussian kernel
+    double gaussian_stdev;      ///< standard deviation for gaussian kernel
+    double *kernel;             ///< gaussian kernel
 
     CUcontext   cu_ctx;
     CUmodule    cu_module;
     CUfunction  cu_func;
     CUfunction  cu_func_uv;
+    CUfucntion  cu_func_gen_kernel;
+    CUfunction  cu_func_gblur;
     CUstream    cu_stream;
 } CUDADummyContext;
 
@@ -244,6 +249,18 @@ static av_cold int cudadummy_load_functions(AVFilterContext *ctx)
         av_log(ctx, AV_LOG_FATAL, "Failed loading Process_uchar2\n");
         goto fail;
     }
+    
+    ret = CHECK_CU(cu->cuModuleGetFunction(&s->cu_func_gen_kernel, s->cu_module, "generate_gaussian"));
+    if (ret < 0) {
+        av_log(ctx, AV_LOG_FATAL, "Failed loading generate_gaussian\n");
+        goto fail;
+    }
+    
+    ret = CHECK_CU(cu->cuModuleGetFunction(&s->cu_func_gblur, s->cu_module, "gaussian_blur"));
+    if (ret < 0) {
+        av_log(ctx, AV_LOG_FATAL, "Failed loading gaussian_blur\n");
+        goto fail;
+    }
 
 fail:
     CHECK_CU(cu->cuCtxPopCurrent(&dummy));
@@ -274,6 +291,54 @@ static av_cold int cudadummy_config_props(AVFilterLink *outlink)
         return ret;
 
     return 0;
+}
+
+static int call_gen_gaussian(AVFilterContext *ctx, double *kern, int kern_dim, double gaussian_stdev)
+{
+    CUDADummyContext *s = ctx->priv;
+    CudaFunctions *cu = s->hwctx->internal->cuda_dl;
+    int ret;
+
+    void *args_uchar[] = {
+        kern, &kern_dim, &gaussian_stdev
+    };
+
+    ret = CHECK_CU(cu->cuLaunchKernel(s->cu_func_gen_kernel,
+                                      DIV_UP(width, BLOCKX), DIV_UP(height, BLOCKY), 1,
+                                      BLOCKX, BLOCKY, 1, 0, s->cu_stream, args_uchar, NULL));
+    
+    if (ret < 0)
+        return ret;
+}
+
+static int call_gblur(AVFilterContext *ctx, CUfunction func,
+                      CUtexObject src_tex[3], AVFrame *out_frame,
+                      int width, int height, int pitch,
+                      int width_uv, int height_uv, int pitch_uv,
+                      double *kernel, int kernel_dim)
+{
+    CUDADummyContext *s = ctx->priv;
+    CudaFunctions *cu = s->hwctx->internal->cuda_dl;
+    int ret;
+
+    CUdeviceptr dst_devptr[3] = {
+        (CUdeviceptr)out_frame->data[0], (CUdeviceptr)out_frame->data[1], (CUdeviceptr)out_frame->data[2]
+    };
+
+    void *args_uchar[] = {
+        &src_tex[0], &src_tex[1], &src_tex[2],
+        &dst_devptr[0], &dst_devptr[1], &dst_devptr[2],
+        &width, &height, &pitch,
+        &width_uv, &height_uv, &pitch_uv,
+        kernel, &kernal_dim
+    };
+
+    ret = CHECK_CU(cu->cuLaunchKernel(s->cu_func_gblur,
+                                      DIV_UP(width, BLOCKX), DIV_UP(height, BLOCKY), 1,
+                                      BLOCKX, BLOCKY, 1, 0, s->cu_stream, args_uchar, NULL));
+    
+    if (ret < 0)
+        return ret;
 }
 
 static int call_cuda_kernel(AVFilterContext *ctx, CUfunction func,
@@ -350,12 +415,21 @@ static int cudadummy_process_internal(AVFilterContext *ctx,
             goto exit;
     }
 
-    ret = call_cuda_kernel(ctx, (s->in_plane_channels[1] > 1) ? s->cu_func_uv : s->cu_func,
-                           tex, out,
-                           out->width, out->height, out->linesize[0],
-                           AV_CEIL_RSHIFT(out->width, s->out_desc->log2_chroma_w),
-                           AV_CEIL_RSHIFT(out->height, s->out_desc->log2_chroma_h),
-                           out->linesize[1] >> ((s->in_plane_channels[1] > 1) ? 1 : 0));
+
+    // Generate gaussian kernel first
+    ret = call_gen_gaussian(ctx, s->kernel, s->kernel_dim, s->gaussian_stdev);
+    if (ret < 0)
+        goto exit;
+    
+    // Conduct gaussian blur
+    ret = call_gblur(ctx, s->cu_func_gblur,
+                     tex, out,
+                     out->width, out->height, out->linesize[0],
+                     AV_CEIL_RSHIFT(out->width, s->out_desc->log2_chroma_w),
+                     AV_CEIL_RSHIFT(out->height, s->out_desc->log2_chroma_h),
+                     out->linesize[1] >> 1,
+                     s->kernel, s->kernel_dim);
+
     if (ret < 0)
         goto exit;
 
@@ -440,8 +514,12 @@ static AVFrame *cudadummy_get_video_buffer(AVFilterLink *inlink, int w, int h)
 static const AVOption options[] = {
     { "w", "Output video width",  OFFSET(w_expr), AV_OPT_TYPE_STRING, { .str = "iw" }, .flags = FLAGS },
     { "h", "Output video height", OFFSET(h_expr), AV_OPT_TYPE_STRING, { .str = "ih" }, .flags = FLAGS },
+    { "kernel_dim", "Dimension of gaussian kernel", OFFSET(kernel_dim),  AV_OPT_TYPE_INT, {.i64=1}, 1, 1024, .flags = FLAGS },
+    { "gaussian_stdev", "Standard deviation of gaussian kernel", OFFSET(gaussian_stdev),  AV_OPT_TYPE_DOUBLE , {.dbl=1}, 0.5, 5, .flags = FLAGS },
     { NULL },
 };
+
+AVFILTER_DEFINE_CLASS(dummy_cuda);
 
 static const AVClass cudadummy_class = {
     .class_name = "cudadummy",
